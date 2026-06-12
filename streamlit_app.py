@@ -1,151 +1,61 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# 웹 페이지 제목 설정
+st.title("🎓 간단 성적 분석")
+st.write("각 과목의 점수를 입력하면 평균 점수와 최종 학점을 계산해 줍니다.")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+st.divider()  # 구분선
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# 과목 리스트
+subjects = ["1", "2", "3"]
+scores = []
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
-
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
+# 1. 입력부: 반복문을 통해 각 과목의 점수를 입력받는 위젯 생성
+st.subheader("📝 점수 입력")
+for s in subjects:
+    # min_value, max_value로 입력 범위를 제한하고, 기본값(value)을 0으로 설정
+    score = st.number_input(
+        f"{s}번 과목 점수", 
+        min_value=0, 
+        max_value=100, 
+        value=0, 
+        step=1,
+        key=f"subject_{s}"  # 위젯 고유 키 지정
     )
+    scores.append(score)
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+st.divider()
 
-    return gdp_df
+# 2. 로직부: 계산 및 학점 산출 (사용자가 버튼을 누르면 계산 시작)
+if st.button("📊 성적 계산하기"):
+    
+    # 평균 계산
+    avg = sum(scores) / len(scores)
 
-gdp_df = get_gdp_data()
+    # 학점 조건문
+    if avg >= 90:
+        grade = "A"
+    elif avg >= 80:
+        grade = "B"
+    elif avg >= 70:
+        grade = "C"
+    else:
+        grade = "D"
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+    # 3. 출력부: 웹 화면에 결과 표시
+    st.subheader("🎯 계산 결과")
+    
+    # 깔끔한 시각화를 위해 컬럼 나누기
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="평균 점수", value=f"{avg:.2f} 점")
+    with col2:
+        st.metric(label="최종 등", value=f"{grade} 등급")
+        
+    # 등급에 따른 안내 메시지 (st.success, st.info 등 활용)
+    if grade in ["A", "B"]:
+        st.success(f"훌륭합니다! 최종 등급은 **{grade}**입니다. 🎉")
+    elif grade == "C":
+        st.info(f"수고하셨습니다. 최종 등급은 **{grade}**입니다. 👍")
+    else:
+        st.error(f"조금 더 분발해보세요! 최종 등급은 **{grade}**입니다. 💪")
